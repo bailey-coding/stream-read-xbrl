@@ -43,20 +43,24 @@ _COLUMNS = (
     "entity_current_legal_name",
     "company_dormant",
     "average_number_employees_during_period",
+    "charity_registration_number_england_wales",
     "period_start",
     "period_end",
     "tangible_fixed_assets",
     "debtors",
+    "trade_debtors_trade_receivables",
     "cash_bank_in_hand",
     "current_assets",
     "creditors_due_within_one_year",
     "creditors_due_after_one_year",
+    "trade_creditors_trade_payables",
     "net_current_assets_liabilities",
     "total_assets_less_current_liabilities",
     "net_assets_liabilities_including_pension_asset_liability",
     "called_up_share_capital",
     "profit_loss_account_reserve",
     "shareholder_funds",
+    "charity_funds",
     "turnover_gross_operating_revenue",
     "other_operating_income",
     "cost_sales",
@@ -78,6 +82,77 @@ logger = logging.getLogger(__name__)
 
 XBRLData = typing.Union[str, bool, decimal.Decimal, datetime.date, None]
 XBRLRow = tuple[XBRLData, ...]
+
+
+@dataclass(frozen=True)
+class XBRLRecord:
+    """A parsed XBRL record with named fields."""
+
+    run_code: str | None
+    company_id: str | None
+    date: datetime.date | None
+    file_type: str | None
+    taxonomy: str | None
+    balance_sheet_date: datetime.date | None
+    companies_house_registered_number: str | None
+    entity_current_legal_name: str | None
+    company_dormant: bool | None
+    average_number_employees_during_period: decimal.Decimal | None
+    charity_registration_number_england_wales: str | None
+    period_start: datetime.date | None
+    period_end: datetime.date | None
+    tangible_fixed_assets: decimal.Decimal | None
+    debtors: decimal.Decimal | None
+    trade_debtors_trade_receivables: decimal.Decimal | None
+    cash_bank_in_hand: decimal.Decimal | None
+    current_assets: decimal.Decimal | None
+    creditors_due_within_one_year: decimal.Decimal | None
+    creditors_due_after_one_year: decimal.Decimal | None
+    trade_creditors_trade_payables: decimal.Decimal | None
+    net_current_assets_liabilities: decimal.Decimal | None
+    total_assets_less_current_liabilities: decimal.Decimal | None
+    net_assets_liabilities_including_pension_asset_liability: decimal.Decimal | None
+    called_up_share_capital: decimal.Decimal | None
+    profit_loss_account_reserve: decimal.Decimal | None
+    shareholder_funds: decimal.Decimal | None
+    charity_funds: decimal.Decimal | None
+    turnover_gross_operating_revenue: decimal.Decimal | None
+    other_operating_income: decimal.Decimal | None
+    cost_sales: decimal.Decimal | None
+    gross_profit_loss: decimal.Decimal | None
+    administrative_expenses: decimal.Decimal | None
+    raw_materials_consumables: decimal.Decimal | None
+    staff_costs: decimal.Decimal | None
+    depreciation_other_amounts_written_off_tangible_intangible_fixed_assets: decimal.Decimal | None
+    other_operating_charges_format2: decimal.Decimal | None
+    operating_profit_loss: decimal.Decimal | None
+    profit_loss_on_ordinary_activities_before_tax: decimal.Decimal | None
+    tax_on_profit_or_loss_on_ordinary_activities: decimal.Decimal | None
+    profit_loss_for_period: decimal.Decimal | None
+    error: str | None
+    zip_url: str | None
+
+
+def xbrl_to_records(
+    name: str,
+    xbrl_bytes: bytes,
+    zip_url: str | None = None,
+) -> tuple[XBRLRecord, ...]:
+    """Parse XBRL content and return a tuple of XBRLRecord dataclasses.
+
+    Args:
+        name: The filename (must match pattern Prod\\d+_\\d+_[^_]+_\\d{8}\\.(html|xml)).
+        xbrl_bytes: The raw XBRL/iXBRL file content.
+        zip_url: Optional URL of the source ZIP file.
+
+    Returns:
+        A tuple of XBRLRecord instances, one per reporting period found in the file.
+    """
+    rows = _xbrl_to_rows((name, xbrl_bytes))
+    return tuple(
+        XBRLRecord(**dict(zip(_COLUMNS, (*row, zip_url))))
+        for row in rows
+    )
 
 
 def _xbrl_to_rows(
@@ -238,6 +313,9 @@ def _xbrl_to_rows(
             (_TN("AverageNumberEmployeesDuringPeriod"), _parse_absolute),
             (_TN("EmployeesTotal"), _parse_absolute),
         ]),
+        "charity_registration_number_england_wales": ([
+            (_AV("CharityRegistrationNumberEnglandWales"), _parse_str),
+        ]),
     }
 
     PERIODICAL_XPATH_MAPPINGS: dict[
@@ -257,6 +335,10 @@ def _xbrl_to_rows(
         "debtors": ([
             (_TN("Debtors"), _parse_decimal),
             (_AV("Debtors"), _parse_decimal),
+        ]),
+        "trade_debtors_trade_receivables": ([
+            (_AV("TradeDebtorsTradeReceivables"), _parse_decimal),
+            (_TN("TradeDebtorsTradeReceivables"), _parse_decimal),
         ]),
         "cash_bank_in_hand": ([
             (_TN("CashBankInHand"), _parse_decimal),
@@ -278,6 +360,10 @@ def _xbrl_to_rows(
                 ),
                 _parse_decimal,
             ),
+        ]),
+        "trade_creditors_trade_payables": ([
+            (_AV("TradeCreditorsTradePayables"), _parse_decimal),
+            (_TN("TradeCreditorsTradePayables"), _parse_decimal),
         ]),
         "creditors_due_after_one_year": ([
             (_AV("CreditorsDueAfterOneYear"), _parse_decimal),
@@ -348,6 +434,9 @@ def _xbrl_to_rows(
                 ),
                 _parse_decimal,
             ),
+        ]),
+        "charity_funds": ([
+            (_AV("CharityFunds"), _parse_decimal),
         ]),
         # income statement
         "turnover_gross_operating_revenue": ([
